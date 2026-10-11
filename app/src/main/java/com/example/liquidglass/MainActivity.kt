@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.flow.collectLatest
 
 private val Ice = Color(0xFF9BEFFF)
@@ -48,6 +49,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun LiquidGlassApp(onOpenTelegramPortal: () -> Unit) {
+    val context = LocalContext.current
     val status by TelegramClient.status.collectAsState()
     val chats by TelegramClient.chats.collectAsState()
     val allMessages by TelegramClient.messages.collectAsState()
@@ -199,7 +201,7 @@ private fun LiquidGlassApp(onOpenTelegramPortal: () -> Unit) {
                                 TextButton(onClick = onOpenTelegramPortal) { Text("Get credentials from my.telegram.org ↗", color = Ice) }
                                 Spacer(Modifier.height(8.dp))
                                 GlassAction("Save securely & continue", enabled = apiId.isNotBlank() && apiHash.isNotBlank()) {
-                                    if (!TelegramClient.saveApiCredentials(appContext = androidx.compose.ui.platform.LocalContext.current, id = apiId, hash = apiHash)) { }
+                                    if (!TelegramClient.saveApiCredentials(context = context, id = apiId, hash = apiHash)) { }
                                 }
                             }
                             TelegramStatus.NeedsPhone -> {
@@ -222,7 +224,7 @@ private fun LiquidGlassApp(onOpenTelegramPortal: () -> Unit) {
                                 Spacer(Modifier.height(14.dp))
                                 GlassAction("Continue", enabled = email.isNotBlank()) {
                                     if (email.contains("@")) TelegramClient.submitEmail(email)
-                                    else Text("Use the email code flow shown by Telegram.")
+                                    else Unit
                                 }
                             }
                             TelegramStatus.Connecting -> CircularProgressIndicator(color = Ice)
