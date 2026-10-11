@@ -2,8 +2,22 @@ plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
 android {
  namespace = "com.example.liquidglass"
  compileSdk = 35
- defaultConfig { applicationId = "com.example.liquidglass"; minSdk = 29; targetSdk = 35; versionCode = 2; versionName = "0.2.0" }
- buildFeatures { compose = true }
+ defaultConfig { applicationId = "com.example.liquidglass"; minSdk = 29; targetSdk = 35; versionCode = 3; versionName = "0.3.0" }
+ signingConfigs {
+  create("release") {
+   val storeFilePath = System.getenv("SIGNING_KEY_PATH")
+   val storePasswordValue = System.getenv("SIGNING_KEY_PASSWORD")
+   val keyAliasValue = System.getenv("SIGNING_KEY_ALIAS")
+   val keyPasswordValue = System.getenv("SIGNING_PRIVATE_KEY_PASSWORD") ?: storePasswordValue
+   if (!storeFilePath.isNullOrBlank() && !storePasswordValue.isNullOrBlank() && !keyAliasValue.isNullOrBlank() && !keyPasswordValue.isNullOrBlank()) {
+    storeFile = file(storeFilePath)
+    storePassword = storePasswordValue
+    keyAlias = keyAliasValue
+    keyPassword = keyPasswordValue
+   }
+  }
+ }
+ buildTypes { getByName("release") { isMinifyEnabled = false; signingConfig = signingConfigs.getByName("release") } }\n buildFeatures { compose = true }
  composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
  compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
  kotlinOptions { jvmTarget = "17" }
