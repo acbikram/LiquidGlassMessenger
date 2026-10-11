@@ -1,10 +1,13 @@
 package com.example.liquidglass
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,79 +30,239 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.flow.collectLatest
 
-private val Ice = Color(0xFF83E8FF)
-private val Ink = Color(0xFF080D18)
-private data class Person(val name:String,val preview:String,val hue:Color,val unread:Int=0)
-private data class Msg(val text:String,val mine:Boolean)
+private val Ice = Color(0xFF9BEFFF)
+private val Ink = Color(0xFF070B16)
+private val Violet = Color(0xFF9B8CFF)
+private val Teal = Color(0xFF55D9D0)
 
 class MainActivity : ComponentActivity() {
- override fun onCreate(savedInstanceState:Bundle?) { super.onCreate(savedInstanceState); enableEdgeToEdge(); setContent { MessengerApp() } }
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        TelegramClient.initialize(applicationContext)
+        setContent { LiquidGlassApp(onOpenTelegramPortal = { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://my.telegram.org"))) }) }
+    }
 }
 
-@Composable private fun MessengerApp() {
- var dark by rememberSaveable { mutableStateOf(true) }
- var opacity by rememberSaveable { mutableFloatStateOf(.78f) }
- var blur by rememberSaveable { mutableFloatStateOf(.6f) }
- var reflection by rememberSaveable { mutableStateOf(true) }
- var tab by rememberSaveable { mutableStateOf("Chats") }
- var active by remember { mutableStateOf<Person?>(null) }
- val fg=if(dark) Color.White else Color(0xFF172033)
- val base=if(dark) Ink else Color(0xFFEAF0F8)
- val glass=(if(dark) Color(0xFF1A2A40) else Color.White).copy(alpha=opacity)
- val people=remember { listOf(Person("Sarah Mitchell","Sent you the updated design ✨",Color(0xFFB06CFF),2),Person("Ahmed Al-Fayed","Voice message · 0:18",Color(0xFF39C6E8)),Person("Design Team","Maya: Looking great!",Color(0xFFFF9A67),5),Person("Family Group","Mom: See you this weekend ❤️",Color(0xFF58D6A0)),Person("Alex Chen","Photo",Color(0xFFFF6C9B)),Person("Olivia Parker","Thanks! Talk soon.",Color(0xFF7795FF))) }
- Box(Modifier.fillMaxSize().background(base)) {
-  Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFF214B6B).copy(alpha=if(dark).42f else .15f),Color.Transparent),radius=900f)))
-  if(active!=null) ChatPage(active!!,fg,glass, { active=null }) else Column(Modifier.fillMaxSize().statusBarsPadding()) {
-   Row(Modifier.fillMaxWidth().padding(horizontal=22.dp,vertical=16.dp),verticalAlignment=Alignment.CenterVertically) {
-    Column(Modifier.weight(1f)) { Text(if(tab=="Chats") "Messages" else tab,color=fg,fontSize=30.sp,fontWeight=FontWeight.Bold,letterSpacing=(-.8).sp); Text("Stay close to your people",color=fg.copy(alpha=.58f),fontSize=13.sp) }
-    GlassButton(Icons.Default.Search,glass,fg) { tab="Search" }; Spacer(Modifier.width(9.dp)); GlassButton(Icons.Default.Edit,glass,fg) { tab="New message" }
-   }
-   when(tab) {
-    "Settings" -> Column(Modifier.weight(1f).fillMaxWidth().padding(22.dp).clip(RoundedCornerShape(28.dp)).background(glass).padding(20.dp)) {
-     Text("Liquid Glass",color=fg,fontSize=23.sp,fontWeight=FontWeight.Bold)
-     Row(Modifier.fillMaxWidth().padding(top=16.dp),verticalAlignment=Alignment.CenterVertically) { Text("Dark appearance",color=fg,modifier=Modifier.weight(1f)); Switch(dark,{dark=it}) }
-     Text("Glass opacity",color=fg); Slider(opacity,{opacity=it},valueRange=.25f..1f)
-     Text("Frosting strength (visual approximation)",color=fg); Slider(blur,{blur=it},valueRange=0f..1f)
-     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) { Text("Reflection highlights",color=fg,modifier=Modifier.weight(1f)); Switch(reflection,{reflection=it}) }
-     Text("This prototype uses translucent surfaces; it does not claim true system-wide backdrop blur.",color=fg.copy(alpha=.55f),fontSize=12.sp)
-     Spacer(Modifier.height(12.dp)); Text("Messages are local demo data. Telegram is not connected.",color=fg.copy(alpha=.55f),fontSize=12.sp)
+@Composable
+private fun LiquidGlassApp(onOpenTelegramPortal: () -> Unit) {
+    val status by TelegramClient.status.collectAsState()
+    val chats by TelegramClient.chats.collectAsState()
+    val allMessages by TelegramClient.messages.collectAsState()
+    var apiId by rememberSaveable { mutableStateOf("") }
+    var apiHash by rememberSaveable { mutableStateOf("") }
+    var phone by rememberSaveable { mutableStateOf("") }
+    var code by rememberSaveable { mutableStateOf("") }
+    var password by rememberSaveable { mutableStateOf("") }
+    var email by rememberSaveable { mutableStateOf("") }
+    var selected by remember { mutableStateOf<TelegramChat?>(null) }
+    var search by rememberSaveable { mutableStateOf("") }
+    var dark by rememberSaveable { mutableStateOf(true) }
+    var glassStrength by rememberSaveable { mutableFloatStateOf(.72f) }
+    val fg = if (dark) Color.White else Color(0xFF16243A)
+    val base = if (dark) Ink else Color(0xFFEAF1FC)
+    val glassColor = (if (dark) Color(0xFF172A42) else Color.White).copy(alpha = glassStrength.coerceIn(.3f, .92f))
+
+    Box(Modifier.fillMaxSize().background(base)) {
+        // Layered luminous fields create a glassmorphism look without relying on unsupported blur APIs.
+        Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFF3859A6).copy(alpha = if (dark) .46f else .18f), Color.Transparent), radius = 900f)))
+        Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFF4DCEC9).copy(alpha = if (dark) .18f else .10f), Color.Transparent), center = androidx.compose.ui.geometry.Offset(850f, 300f), radius = 700f)))
+        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(horizontal = 18.dp)) {
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(45.dp).clip(RoundedCornerShape(16.dp)).background(Brush.linearGradient(listOf(Ice.copy(alpha = .95f), Violet.copy(alpha = .8f)))), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Forum, null, tint = Ink, modifier = Modifier.size(24.dp))
+                }
+                Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                    Text("Liquid Glass", color = fg, fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = (-.7).sp)
+                    Text("TELEGRAM CLIENT", color = fg.copy(alpha = .55f), fontSize = 10.sp, letterSpacing = 2.sp)
+                }
+                if (status is TelegramStatus.Ready) {
+                    IconButton(onClick = { selected = null; search = "" }) { Icon(Icons.Default.Search, "Search chats", tint = fg) }
+                    IconButton(onClick = { TelegramClient.logout() }) { Icon(Icons.Default.Logout, "Log out", tint = fg) }
+                }
+            }
+
+            if (status is TelegramStatus.Ready) {
+                if (selected == null) {
+                    Row(Modifier.fillMaxWidth().clip(CircleShape).background(glassColor).border(1.dp, Brush.horizontalGradient(listOf(Color.White.copy(alpha=.28f), Color.White.copy(alpha=.04f))), CircleShape).padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Search, null, tint = fg.copy(alpha=.55f), modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(10.dp))
+                        BasicTextField(search, { search = it }, Modifier.weight(1f), singleLine = true, textStyle = MaterialTheme.typography.bodyLarge.copy(color = fg), decorationBox = { inner -> Box { if (search.isEmpty()) Text("Search your Telegram chats", color = fg.copy(alpha=.45f)); inner() } })
+                    }
+                    Row(Modifier.fillMaxWidth().padding(vertical = 17.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Your chats", color = fg, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        Text("${chats.size} synced", color = Teal, fontSize = 12.sp)
+                    }
+                    if (chats.isEmpty()) {
+                        GlassPanel(glassColor, Modifier.fillMaxWidth().weight(1f)) {
+                            Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(Icons.Default.CloudSync, null, tint = Ice, modifier = Modifier.size(48.dp))
+                                    Spacer(Modifier.height(14.dp))
+                                    Text("Syncing your Telegram", color = fg, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+                                    Text("Your real conversations will appear here when TDLib finishes loading.", color = fg.copy(alpha=.6f), fontSize = 13.sp)
+                                }
+                            }
+                        }
+                    } else {
+                        LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(9.dp), contentPadding = PaddingValues(bottom = 12.dp)) {
+                            items(chats.filter { it.title.contains(search, true) || it.lastMessage.contains(search, true) }, key = { it.id }) { chat ->
+                                GlassPanel(glassColor, Modifier.fillMaxWidth().clickable { selected = chat; TelegramClient.openChat(chat.id) }) {
+                                    Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Avatar(chat.title, 52)
+                                        Column(Modifier.weight(1f).padding(start = 13.dp)) {
+                                            Text(chat.title, color = fg, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                            Spacer(Modifier.height(5.dp))
+                                            Text(chat.lastMessage.ifBlank { "Open conversation" }, color = fg.copy(alpha = .57f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        }
+                                        Icon(Icons.Default.ChevronRight, null, tint = fg.copy(alpha = .4f))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    GlassPanel(glassColor, Modifier.fillMaxWidth()) {
+                        Row(Modifier.padding(horizontal = 15.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.VerifiedUser, null, tint = Teal, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Connected directly through TDLib", color = fg.copy(alpha = .72f), fontSize = 11.sp, modifier = Modifier.weight(1f))
+                            IconButton(onClick = { dark = !dark }, modifier = Modifier.size(34.dp)) { Icon(if (dark) Icons.Default.LightMode else Icons.Default.DarkMode, "Toggle appearance", tint = fg) }
+                        }
+                    }
+                } else {
+                    val chat = selected!!
+                    Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { selected = null }) { Icon(Icons.Default.ArrowBack, "Back", tint = fg) }
+                        Avatar(chat.title, 40)
+                        Column(Modifier.weight(1f).padding(start = 10.dp)) { Text(chat.title, color = fg, fontWeight = FontWeight.SemiBold); Text("Telegram conversation", color = Teal, fontSize = 11.sp) }
+                        IconButton(onClick = { glassStrength = if (glassStrength > .8f) .55f else .9f }) { Icon(Icons.Default.BlurOn, "Adjust glass", tint = fg) }
+                    }
+                    val messages = allMessages[chat.id].orEmpty()
+                    LazyColumn(Modifier.weight(1f).fillMaxWidth(), reverseLayout = false, contentPadding = PaddingValues(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        items(messages) { message ->
+                            val mine = message.startsWith("YOU: ")
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
+                                GlassPanel(if (mine) Color(0xFF1C6171).copy(alpha=.88f) else glassColor, Modifier.widthIn(max = 310.dp)) {
+                                    Text(message.removePrefix("YOU: "), color = fg, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp))
+                                }
+                            }
+                        }
+                    }
+                    var draft by rememberSaveable(chat.id) { mutableStateOf("") }
+                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp).clip(CircleShape).background(glassColor).border(1.dp, Color.White.copy(alpha=.15f), CircleShape).padding(horizontal = 6.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                        BasicTextField(draft, { draft = it }, Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 10.dp), singleLine = true, textStyle = MaterialTheme.typography.bodyLarge.copy(color = fg), decorationBox = { inner -> Box { if (draft.isEmpty()) Text("Message", color = fg.copy(alpha=.45f)); inner() } })
+                        IconButton(onClick = { if (draft.isNotBlank()) { TelegramClient.sendMessage(chat.id, draft); draft = "" } }) { Icon(Icons.AutoMirrored.Filled.Send, "Send message", tint = Ice) }
+                    }
+                }
+            } else {
+                val err = (status as? TelegramStatus.Error)?.message
+                GlassPanel(glassColor, Modifier.fillMaxWidth().weight(1f)) {
+                    Column(Modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.Start) {
+                        Box(Modifier.size(58.dp).clip(RoundedCornerShape(20.dp)).background(Brush.linearGradient(listOf(Ice, Violet))), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Lock, null, tint = Ink, modifier = Modifier.size(29.dp))
+                        }
+                        Spacer(Modifier.height(20.dp))
+                        Text(
+                            when (status) {
+                                TelegramStatus.NeedsApiCredentials -> "Connect your Telegram"
+                                TelegramStatus.NeedsPhone -> "Your phone number"
+                                TelegramStatus.NeedsCode -> "Verification code"
+                                TelegramStatus.NeedsPassword -> "Two-step verification"
+                                TelegramStatus.NeedsEmail -> "Email verification"
+                                TelegramStatus.Connecting -> "Connecting securely…"
+                                is TelegramStatus.Error -> "Telegram needs attention"
+                                TelegramStatus.Ready -> "Connected"
+                            }, color = fg, fontSize = 25.sp, fontWeight = FontWeight.Bold, letterSpacing = (-.5).sp
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            when (status) {
+                                TelegramStatus.NeedsApiCredentials -> "Add your Telegram API credentials. They are stored encrypted on this device and are never added to the GitHub source."
+                                TelegramStatus.NeedsPhone -> "Enter your number with country code. Telegram will send a sign-in code through its official authorization flow."
+                                TelegramStatus.NeedsCode -> "Enter the login code from Telegram. Never share this code with anyone."
+                                TelegramStatus.NeedsPassword -> "Enter your Telegram two-step verification password, if enabled."
+                                TelegramStatus.NeedsEmail -> "Enter the email address or code requested by Telegram."
+                                TelegramStatus.Connecting -> "Starting the Telegram client and preparing encrypted local storage."
+                                is TelegramStatus.Error -> "Check the message below. Your account credentials are not displayed here."
+                                TelegramStatus.Ready -> ""
+                            }, color = fg.copy(alpha = .63f), fontSize = 13.sp, lineHeight = 19.sp
+                        )
+                        Spacer(Modifier.height(20.dp))
+                        when (status) {
+                            TelegramStatus.NeedsApiCredentials -> {
+                                OutlinedField("API ID", apiId, { apiId = it.filter(Char::isDigit) }, fg)
+                                Spacer(Modifier.height(10.dp))
+                                OutlinedField("API Hash", apiHash, { apiHash = it }, fg)
+                                Spacer(Modifier.height(8.dp))
+                                TextButton(onClick = onOpenTelegramPortal) { Text("Get credentials from my.telegram.org ↗", color = Ice) }
+                                Spacer(Modifier.height(8.dp))
+                                GlassAction("Save securely & continue", enabled = apiId.isNotBlank() && apiHash.isNotBlank()) {
+                                    if (!TelegramClient.saveApiCredentials(appContext = androidx.compose.ui.platform.LocalContext.current, id = apiId, hash = apiHash)) { }
+                                }
+                            }
+                            TelegramStatus.NeedsPhone -> {
+                                OutlinedField("Phone number (+country code)", phone, { phone = it }, fg)
+                                Spacer(Modifier.height(14.dp))
+                                GlassAction("Send sign-in code", enabled = phone.trim().length >= 7) { TelegramClient.submitPhone(phone) }
+                            }
+                            TelegramStatus.NeedsCode -> {
+                                OutlinedField("Telegram login code", code, { code = it }, fg)
+                                Spacer(Modifier.height(14.dp))
+                                GlassAction("Verify code", enabled = code.isNotBlank()) { TelegramClient.submitCode(code) }
+                            }
+                            TelegramStatus.NeedsPassword -> {
+                                OutlinedField("Two-step password", password, { password = it }, fg, password = true)
+                                Spacer(Modifier.height(14.dp))
+                                GlassAction("Verify password", enabled = password.isNotBlank()) { TelegramClient.submitPassword(password) }
+                            }
+                            TelegramStatus.NeedsEmail -> {
+                                OutlinedField("Email address or code", email, { email = it }, fg)
+                                Spacer(Modifier.height(14.dp))
+                                GlassAction("Continue", enabled = email.isNotBlank()) {
+                                    if (email.contains("@")) TelegramClient.submitEmail(email)
+                                    else Text("Use the email code flow shown by Telegram.")
+                                }
+                            }
+                            TelegramStatus.Connecting -> CircularProgressIndicator(color = Ice)
+                            is TelegramStatus.Error -> {
+                                Text(err ?: "Unknown error", color = Color(0xFFFFA7B4), fontSize = 13.sp)
+                                Spacer(Modifier.height(14.dp))
+                                GlassAction("Try phone sign-in", enabled = true) { TelegramClient.submitPhone(phone) }
+                            }
+                            TelegramStatus.Ready -> Unit
+                        }
+                        if (status !is TelegramStatus.Connecting) {
+                            Spacer(Modifier.height(18.dp))
+                            Text("Your sign-in code and password are sent directly to Telegram via TDLib. Never paste them into GitHub or a public chat.", color = fg.copy(alpha = .45f), fontSize = 11.sp, lineHeight = 16.sp)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+        }
     }
-    "Contacts","Calls","New message","Search" -> PeoplePage(tab,people,fg,glass) { active=it }
-    else -> {
-     Row(Modifier.padding(horizontal=20.dp,vertical=5.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) { listOf("All","Unread","Personal","Groups").forEachIndexed { i,s -> Text(s,color=if(i==0) Ice else fg.copy(alpha=.7f),fontSize=12.sp,fontWeight=FontWeight.SemiBold,modifier=Modifier.clip(CircleShape).background(if(i==0) Ice.copy(alpha=.16f) else glass).clickable{}.padding(horizontal=15.dp,vertical=9.dp)) } }
-     LazyColumn(Modifier.weight(1f),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) { items(people) { p ->
-      Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(23.dp)).background(glass).clickable { active=p }.padding(13.dp),verticalAlignment=Alignment.CenterVertically) {
-       Avatar(p,54); Spacer(Modifier.width(13.dp)); Column(Modifier.weight(1f)) { Text(p.name,color=fg,fontWeight=FontWeight.SemiBold,fontSize=15.sp); Spacer(Modifier.height(4.dp)); Text(p.preview,color=fg.copy(alpha=.58f),maxLines=1,overflow=TextOverflow.Ellipsis,fontSize=13.sp) }
-       Column(horizontalAlignment=Alignment.End) { Text("12:45",color=fg.copy(alpha=.45f),fontSize=10.sp); if(p.unread>0) Text(p.unread.toString(),color=Ink,fontSize=11.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(top=6.dp).clip(CircleShape).background(Ice).padding(horizontal=7.dp,vertical=3.dp)) }
-      }
-     } }
-    }
-   }
-   Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal=18.dp,vertical=9.dp).clip(CircleShape).background(glass).padding(vertical=7.dp),horizontalArrangement=Arrangement.SpaceEvenly) {
-    listOf(Icons.Default.ChatBubble to "Chats",Icons.Default.Call to "Calls",Icons.Default.People to "Contacts",Icons.Default.Settings to "Settings").forEach { (icon,label) ->
-     Column(Modifier.weight(1f).clickable { tab=label }.padding(vertical=5.dp),horizontalAlignment=Alignment.CenterHorizontally) { Icon(icon,null,tint=if(tab==label) Ice else fg.copy(alpha=.58f),modifier=Modifier.size(21.dp)); Text(label,color=if(tab==label) Ice else fg.copy(alpha=.58f),fontSize=10.sp) }
-    }
-   }
-  }
- }
 }
 
-@Composable private fun ChatPage(person:Person,fg:Color,glass:Color,onBack:()->Unit) {
- var draft by rememberSaveable(person.name) { mutableStateOf("") }
- val messages=remember(person.name) { mutableStateListOf(Msg("Hey! Are we still on for tomorrow?",false),Msg("Absolutely! See you at 10 😊",true),Msg("Perfect. I'll send the details tonight.",false)) }
- Column(Modifier.fillMaxSize().imePadding()) {
-  Row(Modifier.fillMaxWidth().statusBarsPadding().padding(12.dp).clip(CircleShape).background(glass).padding(8.dp),verticalAlignment=Alignment.CenterVertically) { IconButton(onClick=onBack){Icon(Icons.Default.ArrowBack,null,tint=fg)}; Avatar(person,42); Column(Modifier.weight(1f).padding(start=10.dp)){Text(person.name,color=fg,fontWeight=FontWeight.SemiBold);Text("online recently",color=Ice,fontSize=11.sp)}; IconButton(onClick={}){Icon(Icons.Default.Call,null,tint=fg)} }
-  LazyColumn(Modifier.weight(1f).fillMaxWidth(),contentPadding=PaddingValues(14.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) { items(messages){m -> Row(Modifier.fillMaxWidth(),horizontalArrangement=if(m.mine) Arrangement.End else Arrangement.Start){Column(Modifier.widthIn(max=300.dp).clip(RoundedCornerShape(20.dp)).background(if(m.mine) Color(0xFF245B70) else glass).padding(14.dp)){Text(m.text,color=fg,fontSize=15.sp);Text("12:45",color=fg.copy(alpha=.5f),fontSize=10.sp,modifier=Modifier.align(Alignment.End))}}} }
-  Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp).clip(CircleShape).background(glass).padding(horizontal=8.dp,vertical=5.dp),verticalAlignment=Alignment.CenterVertically) { IconButton(onClick={}){Icon(Icons.Default.Add,null,tint=fg)}; BasicTextField(draft,{draft=it},Modifier.weight(1f).padding(12.dp),singleLine=true,textStyle=MaterialTheme.typography.bodyLarge.copy(color=fg),decorationBox={inner->Box{if(draft.isEmpty())Text("Message",color=fg.copy(alpha=.45f));inner()}}); IconButton(onClick={if(draft.isNotBlank()){messages.add(Msg(draft.trim(),true));draft=""}}){Icon(Icons.AutoMirrored.Filled.Send,null,tint=Ice)} }
- }
+@Composable private fun GlassPanel(color: Color, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Column(modifier.clip(RoundedCornerShape(25.dp)).background(Brush.linearGradient(listOf(color.copy(alpha = (color.alpha + .09f).coerceAtMost(1f)), color.copy(alpha = .72f), color.copy(alpha = .9f)))).border(1.dp, Brush.linearGradient(listOf(Color.White.copy(alpha = .30f), Color.White.copy(alpha = .04f), Ice.copy(alpha = .15f))), RoundedCornerShape(25.dp)), content = content)
 }
-
-@Composable private fun PeoplePage(title:String,people:List<Person>,fg:Color,glass:Color,open:(Person)->Unit) {
- var query by rememberSaveable { mutableStateOf("") }
- Column(Modifier.fillMaxSize().padding(horizontal=20.dp)) { if(title=="Search") { BasicTextField(query,{query=it},Modifier.fillMaxWidth().padding(12.dp),textStyle=MaterialTheme.typography.bodyLarge.copy(color=fg),decorationBox={inner->Box{if(query.isEmpty())Text("Search names…",color=fg.copy(alpha=.5f));inner()}}) } else Text(title,color=fg,fontSize=22.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(bottom=12.dp))
-  LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){items(people.filter{it.name.contains(query,true)}){p->Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(glass).clickable{open(p)}.padding(12.dp),verticalAlignment=Alignment.CenterVertically){Avatar(p,46);Column(Modifier.padding(start=12.dp)){Text(p.name,color=fg,fontWeight=FontWeight.SemiBold);Text(p.preview,color=fg.copy(alpha=.55f),fontSize=12.sp)}}}}
- }
+@Composable private fun Avatar(title: String, size: Int) {
+    val initials = title.split(" ").mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString("").ifBlank { "T" }
+    Box(Modifier.size(size.dp).clip(CircleShape).background(Brush.linearGradient(listOf(Ice.copy(alpha = .85f), Violet.copy(alpha = .9f), Teal.copy(alpha = .65f)))), contentAlignment = Alignment.Center) {
+        Text(initials, color = Ink, fontSize = (size / 3.1f).sp, fontWeight = FontWeight.Bold)
+    }
 }
-@Composable private fun Avatar(p:Person,size:Int){Box(Modifier.size(size.dp).clip(CircleShape).background(Brush.linearGradient(listOf(p.hue,p.hue.copy(alpha=.35f)))),contentAlignment=Alignment.Center){Text(p.name.split(" ").mapNotNull{it.firstOrNull()?.toString()}.take(2).joinToString(""),color=Color.White,fontSize=(size/3.2f).sp,fontWeight=FontWeight.Bold)}}
-@Composable private fun GlassButton(icon:androidx.compose.ui.graphics.vector.ImageVector,glass:Color,fg:Color,click:()->Unit){Box(Modifier.size(44.dp).clip(CircleShape).background(glass).clickable(onClick=click),contentAlignment=Alignment.Center){Icon(icon,null,tint=fg,modifier=Modifier.size(21.dp))}}
+@Composable private fun OutlinedField(label: String, value: String, onValueChange: (String) -> Unit, fg: Color, password: Boolean = false) {
+    Column {
+        Text(label, color = fg.copy(alpha = .6f), fontSize = 12.sp)
+        Spacer(Modifier.height(6.dp))
+        BasicTextField(value, onValueChange, Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).background(Color.White.copy(alpha = .07f)).border(1.dp, Color.White.copy(alpha = .15f), RoundedCornerShape(15.dp)).padding(horizontal = 14.dp, vertical = 15.dp), singleLine = true, textStyle = MaterialTheme.typography.bodyLarge.copy(color = fg), visualTransformation = if (password) androidx.compose.ui.text.input.PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None, decorationBox = { inner -> Box { if (value.isEmpty()) Text(label, color = fg.copy(alpha = .35f)); inner() } })
+    }
+}
+@Composable private fun GlassAction(label: String, enabled: Boolean = true, action: () -> Unit) {
+    Box(Modifier.fillMaxWidth().clip(CircleShape).background(if (enabled) Brush.linearGradient(listOf(Ice, Violet)) else Brush.linearGradient(listOf(Color.Gray, Color.DarkGray))).clickable(enabled = enabled, onClick = action).padding(horizontal = 18.dp, vertical = 15.dp), contentAlignment = Alignment.Center) {
+        Text(label, color = if (enabled) Ink else Color.White.copy(alpha = .55f), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+    }
+}
