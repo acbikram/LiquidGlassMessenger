@@ -250,11 +250,11 @@ object TelegramClient {
                     file.delete()
                     throw IllegalStateException("Photo is over 10 MB. Choose a smaller photo.")
                 }
-                val content = TdApi.InputMessagePhoto(
-                    TdApi.InputFileLocal(file.absolutePath), null, null, 0, 0,
-                    if (caption.isBlank()) null else TdApi.FormattedText(caption.trim(), emptyArray()), 0
-                )
-                client?.send(TdApi.SendMessage(chatId, 0, null, null, null, content)) { result ->
+                val inputPhoto = TdApi.InputPhotoStatic(TdApi.InputFileLocal(file.absolutePath))
+                val formattedCaption = if (caption.isBlank()) TdApi.FormattedText("", emptyArray())
+                    else TdApi.FormattedText(caption.trim(), emptyArray())
+                val content = TdApi.InputMessagePhoto(inputPhoto, formattedCaption, false, null, false)
+                client?.send(TdApi.SendMessage(chatId, null, null, null, null, content)) { result ->
                     if (result is TdApi.Error) { file.delete(); _status.value = TelegramStatus.Error("Photo could not be sent: " + result.message) }
                 } ?: run { file.delete(); _status.value = TelegramStatus.Error("Telegram is not connected. Reopen the app and try again.") }
             } catch (t: Throwable) { _status.value = TelegramStatus.Error(t.message ?: "Could not prepare the photo.") }
