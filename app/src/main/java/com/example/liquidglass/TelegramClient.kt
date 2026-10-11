@@ -147,7 +147,7 @@ object TelegramClient {
                     false, "$dir/telegram-db", "$dir/telegram-files", databaseKey(),
                     true, true, true, true, apiId, apiHash, "en",
                     Build.MODEL ?: "Android", Build.VERSION.RELEASE ?: "Android",
-                    "Telegram Pro/0.7.0"
+                    "Telegram Pro/0.7.1"
                 )) { result -> if (result is TdApi.Error) _status.value = TelegramStatus.Error(result.message) }
             }
             is TdApi.AuthorizationStateWaitPhoneNumber -> _status.value = TelegramStatus.NeedsPhone
