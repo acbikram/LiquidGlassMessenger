@@ -97,7 +97,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable private fun PeoplePage(title:String,people:List<Person>,fg:Color,glass:Color,open:(Person)->Unit) {
  var query by rememberSaveable { mutableStateOf("") }
- Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal=20.dp)) { if(title=="Search") { BasicTextField(query,{query=it},Modifier.fillMaxWidth().padding(12.dp),textStyle=MaterialTheme.typography.bodyLarge.copy(color=fg),decorationBox={inner->Box{if(query.isEmpty())Text("Search names…",color=fg.copy(alpha=.5f));inner()}}) } else Text(title,color=fg,fontSize=22.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(bottom=12.dp))
+ Column(Modifier.fillMaxSize().padding(horizontal=20.dp)) { if(title=="Search") { BasicTextField(query,{query=it},Modifier.fillMaxWidth().padding(12.dp),textStyle=MaterialTheme.typography.bodyLarge.copy(color=fg),decorationBox={inner->Box{if(query.isEmpty())Text("Search names…",color=fg.copy(alpha=.5f));inner()}}) } else Text(title,color=fg,fontSize=22.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(bottom=12.dp))
   LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){items(people.filter{it.name.contains(query,true)}){p->Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(glass).clickable{open(p)}.padding(12.dp),verticalAlignment=Alignment.CenterVertically){Avatar(p,46);Column(Modifier.padding(start=12.dp)){Text(p.name,color=fg,fontWeight=FontWeight.SemiBold);Text(p.preview,color=fg.copy(alpha=.55f),fontSize=12.sp)}}}}
  }
 }
