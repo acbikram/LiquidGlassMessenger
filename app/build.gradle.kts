@@ -2,7 +2,7 @@ plugins { id("com.android.application"); id("org.jetbrains.kotlin.android") }
 android {
  namespace = "com.example.liquidglass"
  compileSdk = 35
- defaultConfig { applicationId = "com.example.liquidglass"; minSdk = 29; targetSdk = 35; versionCode = 5; versionName = "0.5.0" }
+ defaultConfig { applicationId = "com.example.liquidglass"; minSdk = 29; targetSdk = 35; versionCode = 6; versionName = "0.5.1" }
  signingConfigs {
   create("release") {
    val storeFilePath = System.getenv("SIGNING_KEY_PATH")
