@@ -231,7 +231,13 @@ private fun LiquidGlassApp(onOpenTelegramPortal: () -> Unit) {
                             is TelegramStatus.Error -> {
                                 Text(err ?: "Unknown error", color = Color(0xFFFFA7B4), fontSize = 13.sp)
                                 Spacer(Modifier.height(14.dp))
-                                GlassAction("Try phone sign-in", enabled = true) { TelegramClient.submitPhone(phone) }
+                                // Keep a visible phone input on the error screen too, so a missing
+                                // phone number can never be submitted from a button with no field.
+                                OutlinedField("Phone number (+country code)", phone, { phone = it }, fg)
+                                Spacer(Modifier.height(12.dp))
+                                GlassAction("Try phone sign-in", enabled = phone.trim().length >= 7) {
+                                    TelegramClient.submitPhone(phone)
+                                }
                             }
                             TelegramStatus.Ready -> Unit
                         }
