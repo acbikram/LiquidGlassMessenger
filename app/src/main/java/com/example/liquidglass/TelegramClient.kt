@@ -237,6 +237,29 @@ object TelegramClient {
             if (result is TdApi.Error) _status.value = TelegramStatus.Error(result.message)
         }
     }
+    fun sendPhoto(chatId: Long, uri: android.net.Uri, caption: String = "") {
+        val context = appContext
+        Thread {
+            try {
+                val input = context.contentResolver.openInputStream(uri)
+                    ?: throw IllegalStateException("Could not read the selected photo.")
+                val file = java.io.File(context.cacheDir, "telegram-photo-" + System.currentTimeMillis() + ".jpg")
+                input.use { source -> file.outputStream().use { target -> source.copyTo(target) } }
+                if (!file.exists() || file.length() == 0L) throw IllegalStateException("The selected photo is empty.")
+                if (file.length() > 10L * 1024L * 1024L) {
+                    file.delete()
+                    throw IllegalStateException("Photo is over 10 MB. Choose a smaller photo.")
+                }
+                val content = TdApi.InputMessagePhoto(
+                    TdApi.InputFileLocal(file.absolutePath), null, null, 0, 0,
+                    if (caption.isBlank()) null else TdApi.FormattedText(caption.trim(), emptyArray()), 0
+                )
+                client?.send(TdApi.SendMessage(chatId, 0, null, null, null, content)) { result ->
+                    if (result is TdApi.Error) { file.delete(); _status.value = TelegramStatus.Error("Photo could not be sent: " + result.message) }
+                } ?: run { file.delete(); _status.value = TelegramStatus.Error("Telegram is not connected. Reopen the app and try again.") }
+            } catch (t: Throwable) { _status.value = TelegramStatus.Error(t.message ?: "Could not prepare the photo.") }
+        }.start()
+    }
     fun openChat(chatId: Long) {
         client?.send(TdApi.GetChatHistory(chatId, 0, 0, 50, false)) { result ->
             if (result is TdApi.Messages) {
