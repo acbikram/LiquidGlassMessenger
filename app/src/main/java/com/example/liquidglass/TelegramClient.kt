@@ -155,7 +155,18 @@ object TelegramClient {
     }
 
     fun submitPhone(phone: String) {
-        client?.send(TdApi.SetAuthenticationPhoneNumber(phone.trim(), null)) { result -> if (result is TdApi.Error) _status.value = TelegramStatus.Error(result.message) }
+        val normalized = phone.trim()
+        if (normalized.isBlank()) {
+            _status.value = TelegramStatus.NeedsPhone
+            return
+        }
+        if (normalized.count { it.isDigit() } < 7) {
+            _status.value = TelegramStatus.Error("Enter a complete phone number including country code, for example +9665XXXXXXXX.")
+            return
+        }
+        client?.send(TdApi.SetAuthenticationPhoneNumber(normalized, null)) { result ->
+            if (result is TdApi.Error) _status.value = TelegramStatus.Error(result.message)
+        }
     }
     fun submitCode(code: String) {
         client?.send(TdApi.CheckAuthenticationCode(code.trim())) { result -> if (result is TdApi.Error) _status.value = TelegramStatus.Error(result.message) }
