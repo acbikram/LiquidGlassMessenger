@@ -1,6 +1,8 @@
 package com.example.liquidglass
 
 import android.content.Context
+import android.net.Uri
+import java.io.File
 import android.os.Build
 import android.util.Base64
 import androidx.security.crypto.EncryptedSharedPreferences
@@ -147,7 +149,7 @@ object TelegramClient {
                     false, "$dir/telegram-db", "$dir/telegram-files", databaseKey(),
                     true, true, true, true, apiId, apiHash, "en",
                     Build.MODEL ?: "Android", Build.VERSION.RELEASE ?: "Android",
-                    "Telegram Pro/0.5.1"
+                    "Telegram Pro/0.6.0"
                 )) { result -> if (result is TdApi.Error) _status.value = TelegramStatus.Error(result.message) }
             }
             is TdApi.AuthorizationStateWaitPhoneNumber -> _status.value = TelegramStatus.NeedsPhone
@@ -230,6 +232,34 @@ object TelegramClient {
     fun submitEmail(email: String) {
         client?.send(TdApi.SetAuthenticationEmailAddress(email.trim())) { result -> if (result is TdApi.Error) _status.value = TelegramStatus.Error(result.message) }
     }
+    fun sendPhoto(context: Context, chatId: Long, uri: Uri) {
+        try {
+            val input = context.contentResolver.openInputStream(uri)
+                ?: throw IllegalStateException("Could not open the selected image.")
+            val photoFile = File.createTempFile("telegram-photo-", ".img", context.cacheDir)
+            input.use { source -> photoFile.outputStream().use { target -> source.copyTo(target) } }
+            val caption = TdApi.FormattedText("", emptyArray<TdApi.TextEntity>())
+            val content = TdApi.InputMessagePhoto(
+                TdApi.InputFileLocal(photoFile.absolutePath),
+                null,
+                intArrayOf(),
+                0,
+                0,
+                caption,
+                0
+            )
+            client?.send(TdApi.SendMessage(chatId, null, null, null, null, content)) { result ->
+                if (result is TdApi.Error && _status.value !is TelegramStatus.Ready) {
+                    _status.value = TelegramStatus.Error(result.message)
+                }
+            } ?: run { _status.value = TelegramStatus.Error("Telegram is not connected.") }
+        } catch (t: Throwable) {
+            if (_status.value !is TelegramStatus.Ready) {
+                _status.value = TelegramStatus.Error(t.message ?: "Could not prepare the selected image.")
+            }
+        }
+    }
+
     fun sendMessage(chatId: Long, text: String) {
         if (text.isBlank()) return
         val content = TdApi.InputMessageText(TdApi.FormattedText(text.trim(), emptyArray()), null, true)
