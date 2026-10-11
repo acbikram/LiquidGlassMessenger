@@ -204,7 +204,7 @@ object TelegramClient {
                         is TdApi.MessageText -> (if (m.isOutgoing) "YOU: " else "") + c.text.text
                         is TdApi.MessagePhoto -> "📷 Photo"
                         is TdApi.MessageVideo -> "🎬 Video"
-                        is TdApi.MessageDocument -> "📎 File: ${m.content.document.fileName}"
+                        is TdApi.MessageDocument -> "📎 File: ${c.document.fileName}"
                         is TdApi.MessageVoiceNote -> "🎤 Voice message"
                         is TdApi.MessageAudio -> "🎵 Audio"
                         is TdApi.MessageAnimation -> "🎞 GIF"
