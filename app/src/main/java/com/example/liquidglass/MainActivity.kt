@@ -5,8 +5,6 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -62,10 +60,6 @@ private fun LiquidGlassApp(onOpenTelegramPortal: () -> Unit) {
     var password by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
     var selected by remember { mutableStateOf<TelegramChat?>(null) }
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        val chat = selected
-        if (uri != null && chat != null) TelegramClient.sendPhoto(context, chat.id, uri)
-    }
     var search by rememberSaveable { mutableStateOf("") }
     var dark by rememberSaveable { mutableStateOf(true) }
     var glassStrength by rememberSaveable { mutableFloatStateOf(.72f) }
@@ -161,7 +155,6 @@ private fun LiquidGlassApp(onOpenTelegramPortal: () -> Unit) {
                     var draft by rememberSaveable(chat.id) { mutableStateOf("") }
                     Row(Modifier.fillMaxWidth().padding(vertical = 8.dp).clip(CircleShape).background(glassColor).border(1.dp, Color.White.copy(alpha=.15f), CircleShape).padding(horizontal = 6.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
                         BasicTextField(draft, { draft = it }, Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 10.dp), singleLine = true, textStyle = MaterialTheme.typography.bodyLarge.copy(color = fg), decorationBox = { inner -> Box { if (draft.isEmpty()) Text("Message", color = fg.copy(alpha=.45f)); inner() } })
-                        IconButton(onClick = { photoPicker.launch("image/*") }) { Icon(Icons.Default.AttachFile, "Attach photo", tint = fg.copy(alpha = .8f)) }
                         IconButton(onClick = { if (draft.isNotBlank()) { TelegramClient.sendMessage(chat.id, draft); draft = "" } }) { Icon(Icons.AutoMirrored.Filled.Send, "Send message", tint = Ice) }
                     }
                 }
