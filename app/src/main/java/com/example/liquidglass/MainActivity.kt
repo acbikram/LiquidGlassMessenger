@@ -77,8 +77,8 @@ private fun LiquidGlassApp(onOpenTelegramPortal: () -> Unit) {
                     Icon(Icons.Default.Forum, null, tint = Ink, modifier = Modifier.size(24.dp))
                 }
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                    Text("Liquid Glass", color = fg, fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = (-.7).sp)
-                    Text("TELEGRAM CLIENT", color = fg.copy(alpha = .55f), fontSize = 10.sp, letterSpacing = 2.sp)
+                    Text("Telegram Pro", color = fg, fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = (-.7).sp)
+                    Text("LIQUID GLASS MESSENGER", color = fg.copy(alpha = .55f), fontSize = 9.sp, letterSpacing = 1.5.sp)
                 }
                 if (status is TelegramStatus.Ready) {
                     IconButton(onClick = { selected = null; search = "" }) { Icon(Icons.Default.Search, "Search chats", tint = fg) }
