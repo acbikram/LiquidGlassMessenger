@@ -29,6 +29,7 @@ object TelegramClient {
     private var client: Client? = null
     private var apiId: Int = 0
     private var apiHash: String = ""
+    @Volatile private var authorizationState: TdApi.AuthorizationState? = null
     private val _status = MutableStateFlow<TelegramStatus>(TelegramStatus.NeedsApiCredentials)
     val status = _status.asStateFlow()
     private val _chats = MutableStateFlow<List<TelegramChat>>(emptyList())
@@ -103,7 +104,10 @@ object TelegramClient {
 
     private fun handle(update: TdApi.Object) {
         when (update) {
-            is TdApi.UpdateAuthorizationState -> handleAuthorization(update.authorizationState)
+            is TdApi.UpdateAuthorizationState -> {
+                authorizationState = update.authorizationState
+                handleAuthorization(update.authorizationState)
+            }
             is TdApi.UpdateNewChat -> {
                 val c = update.chat
                 titles[c.id] = c.title
@@ -143,7 +147,7 @@ object TelegramClient {
                     false, "$dir/telegram-db", "$dir/telegram-files", databaseKey(),
                     true, true, true, true, apiId, apiHash, "en",
                     Build.MODEL ?: "Android", Build.VERSION.RELEASE ?: "Android",
-                    "Telegram Pro/0.5.0"
+                    "Telegram Pro/0.5.1"
                 )) { result -> if (result is TdApi.Error) _status.value = TelegramStatus.Error(result.message) }
             }
             is TdApi.AuthorizationStateWaitPhoneNumber -> _status.value = TelegramStatus.NeedsPhone
@@ -176,9 +180,46 @@ object TelegramClient {
             _status.value = TelegramStatus.Error("Enter a complete phone number including country code, for example +9665XXXXXXXX.")
             return
         }
-        client?.send(TdApi.SetAuthenticationPhoneNumber(normalized, null)) { result ->
-            if (result is TdApi.Error) _status.value = TelegramStatus.Error(result.message)
+
+        // Never send a phone-number request unless TDLib is actually waiting for one.
+        // The error screen can remain visible after an earlier request error, so the
+        // UI status alone is not a reliable indication of TDLib's current auth state.
+        val currentState = authorizationState
+        if (currentState !is TdApi.AuthorizationStateWaitPhoneNumber) {
+            client?.send(TdApi.GetAuthorizationState()) { result ->
+                if (result is TdApi.AuthorizationState) {
+                    authorizationState = result
+                    handleAuthorization(result)
+                    if (result is TdApi.AuthorizationStateWaitPhoneNumber) {
+                        sendPhoneNumber(normalized)
+                    }
+                } else if (result is TdApi.Error) {
+                    _status.value = TelegramStatus.Error(result.message)
+                }
+            } ?: run { _status.value = TelegramStatus.Connecting }
+            return
         }
+        sendPhoneNumber(normalized)
+    }
+
+    private fun sendPhoneNumber(phone: String) {
+        client?.send(TdApi.SetAuthenticationPhoneNumber(phone, null)) { result ->
+            if (result is TdApi.Error) {
+                // Refresh the real TDLib state instead of leaving the app on a stale
+                // phone screen that may submit the same invalid request again.
+                client?.send(TdApi.GetAuthorizationState()) { stateResult ->
+                    if (stateResult is TdApi.AuthorizationState) {
+                        authorizationState = stateResult
+                        handleAuthorization(stateResult)
+                        if (stateResult is TdApi.AuthorizationStateWaitPhoneNumber) {
+                            _status.value = TelegramStatus.Error(result.message)
+                        }
+                    } else {
+                        _status.value = TelegramStatus.Error(result.message)
+                    }
+                }
+            }
+        } ?: run { _status.value = TelegramStatus.Connecting }
     }
     fun submitCode(code: String) {
         client?.send(TdApi.CheckAuthenticationCode(code.trim())) { result -> if (result is TdApi.Error) _status.value = TelegramStatus.Error(result.message) }
