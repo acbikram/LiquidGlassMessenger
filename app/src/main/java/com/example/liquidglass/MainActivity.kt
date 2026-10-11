@@ -55,13 +55,17 @@ private fun LiquidGlassApp(onOpenTelegramPortal: () -> Unit) {
     val status by TelegramClient.status.collectAsState()
     val chats by TelegramClient.chats.collectAsState()
     val allMessages by TelegramClient.messages.collectAsState()
-    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->\n        val chat = selected\n        if (uri != null && chat != null) TelegramClient.sendPhoto(context, chat.id, uri)\n    }\n    var apiId by rememberSaveable { mutableStateOf("") }
+    var apiId by rememberSaveable { mutableStateOf("") }
     var apiHash by rememberSaveable { mutableStateOf("") }
     var phone by rememberSaveable { mutableStateOf("") }
     var code by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
     var selected by remember { mutableStateOf<TelegramChat?>(null) }
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        val chat = selected
+        if (uri != null && chat != null) TelegramClient.sendPhoto(context, chat.id, uri)
+    }
     var search by rememberSaveable { mutableStateOf("") }
     var dark by rememberSaveable { mutableStateOf(true) }
     var glassStrength by rememberSaveable { mutableFloatStateOf(.72f) }
