@@ -131,11 +131,9 @@ object TelegramClient {
                     false, "$dir/telegram-db", "$dir/telegram-files", databaseKey(),
                     true, true, true, true, apiId, apiHash, "en",
                     Build.MODEL ?: "Android", Build.VERSION.RELEASE ?: "Android",
-                    "LiquidGlassMessenger/0.2.0", true, false
+                    "LiquidGlassMessenger/0.2.0"
                 )) { result -> if (result is TdApi.Error) _status.value = TelegramStatus.Error(result.message) }
             }
-            is TdApi.AuthorizationStateWaitEncryptionKey ->
-                client?.send(TdApi.CheckDatabaseEncryptionKey(databaseKey())) { result -> if (result is TdApi.Error) _status.value = TelegramStatus.Error(result.message) }
             is TdApi.AuthorizationStateWaitPhoneNumber -> _status.value = TelegramStatus.NeedsPhone
             is TdApi.AuthorizationStateWaitCode -> _status.value = TelegramStatus.NeedsCode
             is TdApi.AuthorizationStateWaitPassword -> _status.value = TelegramStatus.NeedsPassword
