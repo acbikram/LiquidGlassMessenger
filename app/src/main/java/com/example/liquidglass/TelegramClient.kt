@@ -82,8 +82,20 @@ object TelegramClient {
         if (client != null) return
         _status.value = TelegramStatus.Connecting
         try {
-            client = Client.create({ update -> handle(update) }, { error -> _status.value = TelegramStatus.Error(error.message ?: "Telegram client error") }, { error -> _status.value = TelegramStatus.Error(error.message ?: "Telegram client error") })
-            client?.send(TdApi.GetAuthorizationState()) { result -> handleAuthorization(result) }
+            // TDLib emits UpdateAuthorizationState after Client.create().
+            // Do not also query GetAuthorizationState here: processing both paths can
+            // send SetTdlibParameters twice and produce "Unexpected setTdlibParameters".
+            client = Client.create(
+                { update -> handle(update) },
+                { error ->
+                    val message = error.message ?: "Telegram client error"
+                    if (_status.value !is TelegramStatus.Ready) _status.value = TelegramStatus.Error(message)
+                },
+                { error ->
+                    val message = error.message ?: "Telegram client error"
+                    if (_status.value !is TelegramStatus.Ready) _status.value = TelegramStatus.Error(message)
+                }
+            )
         } catch (t: Throwable) {
             _status.value = TelegramStatus.Error(t.message ?: "Could not start TDLib")
         }
@@ -192,7 +204,14 @@ object TelegramClient {
                         is TdApi.MessageText -> (if (m.isOutgoing) "YOU: " else "") + c.text.text
                         is TdApi.MessagePhoto -> "📷 Photo"
                         is TdApi.MessageVideo -> "🎬 Video"
-                        else -> null
+                        is TdApi.MessageDocument -> "📎 File: ${m.content.document.fileName}"
+                        is TdApi.MessageVoiceNote -> "🎤 Voice message"
+                        is TdApi.MessageAudio -> "🎵 Audio"
+                        is TdApi.MessageAnimation -> "🎞 GIF"
+                        is TdApi.MessageSticker -> "✨ Sticker"
+                        is TdApi.MessageLocation -> "📍 Location"
+                        is TdApi.MessageContact -> "👤 Contact"
+                        else -> "Unsupported message type"
                     }
                 }
                 messageCache[chatId] = list.toMutableList()
